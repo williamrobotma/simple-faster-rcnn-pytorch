@@ -7,7 +7,8 @@ from pprint import pprint
 
 class Config:
     # data
-    voc_data_dir = '/dataset/PASCAL2007/VOC2007/'
+    voc_data_dir = './VOCdevkit/VOC2007/'
+    pipe_data_dir = 'data/yeast_processed_log_norm_area_50/'
     min_size = 600  # image resize
     max_size = 1000 # image resize
     num_workers = 8
