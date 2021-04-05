@@ -9,6 +9,7 @@ from torchvision.ops import nms
 
 from torch import nn
 from data.dataset import preprocess
+from data.dataset import preprocess_pipe
 from torch.nn import functional as F
 from utils.config import opt
 
@@ -129,6 +130,8 @@ class FasterRCNN(nn.Module):
         h = self.extractor(x)
         rpn_locs, rpn_scores, rois, roi_indices, anchor = \
             self.rpn(h, img_size, scale)
+        # print('predict')
+        # print(rpn_locs.shape, rpn_scores.shape, rois.shape, roi_indices.shape, anchor.shape)
         roi_cls_locs, roi_scores = self.head(
             h, rois, roi_indices)
         return roi_cls_locs, roi_scores, rois, roi_indices
@@ -168,12 +171,18 @@ class FasterRCNN(nn.Module):
         for l in range(1, self.n_class):
             cls_bbox_l = raw_cls_bbox.reshape((-1, self.n_class, 4))[:, l, :]
             prob_l = raw_prob[:, l]
+            # print('_suppress 1')
+            # print(cls_bbox_l, prob_l)
             mask = prob_l > self.score_thresh
             cls_bbox_l = cls_bbox_l[mask]
             prob_l = prob_l[mask]
+            # print('_suppress 2')
+            # print(cls_bbox_l, prob_l)
             keep = nms(cls_bbox_l, prob_l,self.nms_thresh)
             # import ipdb;ipdb.set_trace()
             # keep = cp.asnumpy(keep)
+            # print('_suppress 3')
+            # print(keep)
             bbox.append(cls_bbox_l[keep].cpu().numpy())
             # The labels are in [0, self.n_class - 2].
             label.append((l - 1) * np.ones((len(keep),)))
@@ -184,7 +193,7 @@ class FasterRCNN(nn.Module):
         return bbox, label, score
 
     @nograd
-    def predict(self, imgs,sizes=None,visualize=False):
+    def predict(self, imgs,sizes=None,visualize=False, pipe=False):
         """Detect objects from images.
 
         This method predicts objects for each image.
@@ -219,7 +228,10 @@ class FasterRCNN(nn.Module):
             sizes = list()
             for img in imgs:
                 size = img.shape[1:]
-                img = preprocess(at.tonumpy(img))
+                if pipe:
+                    img = preprocess_pipe(at.tonumpy(img))
+                else:
+                    img = preprocess(at.tonumpy(img))
                 prepared_imgs.append(img)
                 sizes.append(size)
         else:
@@ -235,6 +247,9 @@ class FasterRCNN(nn.Module):
             roi_score = roi_scores.data
             roi_cls_loc = roi_cls_loc.data
             roi = at.totensor(rois) / scale
+
+            # print('l245 faster_rcnn.py predict print(roi_score, roi_cls_loc, roi)')
+            # print(roi_score, roi_cls_loc, roi)
 
             # Convert predictions to bounding boxes in image coordinates.
             # Bounding boxes are scaled to the scale of the input images.
@@ -254,8 +269,12 @@ class FasterRCNN(nn.Module):
             cls_bbox[:, 0::2] = (cls_bbox[:, 0::2]).clamp(min=0, max=size[0])
             cls_bbox[:, 1::2] = (cls_bbox[:, 1::2]).clamp(min=0, max=size[1])
 
+            # print('print(at.totensor(roi_score))')
+            # print(at.totensor(roi_score))
             prob = (F.softmax(at.totensor(roi_score), dim=1))
 
+            # print('l267 print(cls_bbox, prob)')
+            # print(cls_bbox, prob)
             bbox, label, score = self._suppress(cls_bbox, prob)
             bboxes.append(bbox)
             labels.append(label)
@@ -263,6 +282,8 @@ class FasterRCNN(nn.Module):
 
         self.use_preset('evaluate')
         self.train()
+        # print('l275 print(bboxes, labels, scores)')
+        # print(bboxes, labels, scores)
         return bboxes, labels, scores
 
     def get_optimizer(self):

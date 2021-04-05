@@ -22,6 +22,10 @@ def decom_vgg16():
     features = list(model.features)[:30]
     classifier = model.classifier
 
+    if opt.n_channels and opt.n_channels != 3:
+        features[0] = nn.Conv2d(opt.n_channels, 64, kernel_size=(3, 3),
+                                stride=(1, 1), padding=(1, 1))
+
     classifier = list(classifier)
     del classifier[6]
     if not opt.use_drop:
@@ -58,9 +62,11 @@ class FasterRCNNVGG16(FasterRCNN):
     def __init__(self,
                  n_fg_class=20,
                  ratios=[0.5, 1, 2],
-                 anchor_scales=[8, 16, 32]
+                 anchor_scales=[8, 16, 32],
                  ):
-                 
+
+        self.n_classes=n_fg_class+1
+
         extractor, classifier = decom_vgg16()
 
         rpn = RegionProposalNetwork(
@@ -82,6 +88,8 @@ class FasterRCNNVGG16(FasterRCNN):
             rpn,
             head,
         )
+
+        
 
 
 class VGG16RoIHead(nn.Module):
@@ -139,9 +147,14 @@ class VGG16RoIHead(nn.Module):
         # NOTE: important: yx->xy
         xy_indices_and_rois = indices_and_rois[:, [0, 2, 1, 4, 3]]
         indices_and_rois =  xy_indices_and_rois.contiguous()
-
         pool = self.roi(x, indices_and_rois)
-        pool = pool.view(pool.size(0), -1)
+        # print(pool.shape)
+        # if pool.size(0) == 0:
+            # pool = pool.view(pool.size(0), -1)
+        # else:
+        pool = t.flatten(pool, start_dim=1)
+
+        # print(pool.shape)
         fc7 = self.classifier(pool)
         roi_cls_locs = self.cls_loc(fc7)
         roi_scores = self.score(fc7)

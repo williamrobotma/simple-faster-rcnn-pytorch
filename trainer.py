@@ -59,7 +59,7 @@ class FasterRCNNTrainer(nn.Module):
 
         # indicators for training status
         self.rpn_cm = ConfusionMeter(2)
-        self.roi_cm = ConfusionMeter(21)
+        self.roi_cm = ConfusionMeter(faster_rcnn.n_classes)
         self.meters = {k: AverageValueMeter() for k in LossTuple._fields}  # average loss
 
     def forward(self, imgs, bboxes, labels, scale):
@@ -95,9 +95,13 @@ class FasterRCNNTrainer(nn.Module):
         img_size = (H, W)
 
         features = self.faster_rcnn.extractor(imgs)
+        # print(f"features shape: {features.shape}")
 
         rpn_locs, rpn_scores, rois, roi_indices, anchor = \
             self.faster_rcnn.rpn(features, img_size, scale)
+        # print('line 101 after rpn')
+        # print(rpn_locs.shape, rpn_scores.shape, rois.shape, roi_indices.shape, anchor.shape)
+        # print(bboxes[0].shape)
 
         # Since batch size is one, convert variables to singular form
         bbox = bboxes[0]
@@ -129,17 +133,23 @@ class FasterRCNNTrainer(nn.Module):
             img_size)
         gt_rpn_label = at.totensor(gt_rpn_label).long()
         gt_rpn_loc = at.totensor(gt_rpn_loc)
+        # print('l135 print(gt_rpn_loc, gt_rpn_label.data)')
+        # print(gt_rpn_loc, gt_rpn_label.data)
         rpn_loc_loss = _fast_rcnn_loc_loss(
             rpn_loc,
             gt_rpn_loc,
             gt_rpn_label.data,
             self.rpn_sigma)
-
+        
+        # print(rpn_score.shape, gt_rpn_label.shape)
         # NOTE: default value of ignore_index is -100 ...
         rpn_cls_loss = F.cross_entropy(rpn_score, gt_rpn_label.cuda(), ignore_index=-1)
         _gt_rpn_label = gt_rpn_label[gt_rpn_label > -1]
         _rpn_score = at.tonumpy(rpn_score)[at.tonumpy(gt_rpn_label) > -1]
-        self.rpn_cm.add(at.totensor(_rpn_score, False), _gt_rpn_label.data.long())
+        # print(_rpn_score.shape, _gt_rpn_label.shape)
+        if _gt_rpn_label.nelement() > 0:
+            self.rpn_cm.add(at.totensor(_rpn_score, False), _gt_rpn_label.data.long())
+        
 
         # ------------------ ROI losses (fast rcnn loss) -------------------#
         n_sample = roi_cls_loc.shape[0]
@@ -162,6 +172,8 @@ class FasterRCNNTrainer(nn.Module):
         losses = [rpn_loc_loss, rpn_cls_loss, roi_loc_loss, roi_cls_loss]
         losses = losses + [sum(losses)]
 
+        # print('end of FasterRCNN Trainer print(LossTuple(*losses))')
+        # print(LossTuple(*losses))
         return LossTuple(*losses)
 
     def train_step(self, imgs, bboxes, labels, scale):
@@ -255,4 +267,5 @@ def _fast_rcnn_loc_loss(pred_loc, gt_loc, gt_label, sigma):
     loc_loss = _smooth_l1_loss(pred_loc, gt_loc, in_weight.detach(), sigma)
     # Normalize by total number of negtive and positive rois.
     loc_loss /= ((gt_label >= 0).sum().float()) # ignore gt_label==-1 for rpn_loss
+    assert (gt_label >= 0).sum() != 0
     return loc_loss

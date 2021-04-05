@@ -1,4 +1,6 @@
 import os
+import glob
+import json
 import numpy as np
 
 
@@ -42,7 +44,7 @@ class PipeDataset:
         self.label_names = LABEL_NAMES
 
         # get paths of PIPE landscapes
-        self.img_files = glob.glob(os.path.join(folder_path,'features','*.npy'))
+        self.img_files = glob.glob(os.path.join(data_dir,'features','*.npy'))
 
         # get names of each pair
         self.pair_names = []
@@ -51,7 +53,7 @@ class PipeDataset:
 
         # get bboxes
         self.bboxes = {}
-        with open(os.path.join(folder_path, 'coords.json'), 'r') as f:
+        with open(os.path.join(data_dir, 'coords.json'), 'r') as f:
             self.bboxes = json.load(f)
 
         assert len(self.bboxes) == len(self.pair_names)

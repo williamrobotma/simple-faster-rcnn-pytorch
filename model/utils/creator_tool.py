@@ -201,16 +201,20 @@ class AnchorTargetCreator(object):
         n_anchor = len(anchor)
         inside_index = _get_inside_index(anchor, img_H, img_W)
         anchor = anchor[inside_index]
+        # print('l204 anchor target creator')
+        # print(len(inside_index))
+        # print(anchor.shape)
+        # print(bbox.shape)
+        # print(img_size)
         argmax_ious, label = self._create_label(
             inside_index, anchor, bbox)
 
         # compute bounding box regression targets
         loc = bbox2loc(anchor, bbox[argmax_ious])
-
+        # print(label.shape, loc.shape)
         # map up to original set of anchors
         label = _unmap(label, n_anchor, inside_index, fill=-1)
         loc = _unmap(loc, n_anchor, inside_index, fill=0)
-
         return loc, label
 
     def _create_label(self, inside_index, anchor, bbox):
@@ -253,10 +257,23 @@ class AnchorTargetCreator(object):
         ious = bbox_iou(anchor, bbox)
         argmax_ious = ious.argmax(axis=1)
         max_ious = ious[np.arange(len(inside_index)), argmax_ious]
-        gt_argmax_ious = ious.argmax(axis=0)
+        # print(ious)
+        # print(argmax_ious.shape, max_ious.shape)
+
+
+        try:
+            gt_argmax_ious = ious.argmax(axis=0)
+        except ValueError as e:
+            gt_argmax_ious = np.empty(0, dtype=np.int64)
         gt_max_ious = ious[gt_argmax_ious, np.arange(ious.shape[1])]
         gt_argmax_ious = np.where(ious == gt_max_ious)[0]
-
+        
+        if len(max_ious) == 0:
+            assert max_ious.shape == argmax_ious.shape
+            assert max_ious.shape == gt_argmax_ious.shape
+            # from sys import exit
+            # exit()
+        # print(argmax_ious.shape, max_ious.shape, gt_argmax_ious.shape)
         return argmax_ious, max_ious, gt_argmax_ious
 
 

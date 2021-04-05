@@ -8,9 +8,12 @@ from pprint import pprint
 class Config:
     # data
     voc_data_dir = './VOCdevkit/VOC2007/'
-    pipe_data_dir = 'data/yeast_processed_log_norm_area_50/'
+    pipe_data_dir = '../data/yeast_processed_log_norm_area_50/'
+    save_path = '../models/frcnn'
     min_size = 600  # image resize
     max_size = 1000 # image resize
+    n_channels = 4
+    # n_channels = 3
     num_workers = 8
     test_num_workers = 8
 
@@ -21,6 +24,7 @@ class Config:
     # param for optimizer
     # 0.0005 in origin paper but 0.0001 in tf-faster-rcnn
     weight_decay = 0.0005
+    step_size = 10
     lr_decay = 0.1  # 1e-3 -> 1e-4
     lr = 1e-3
 
@@ -35,10 +39,10 @@ class Config:
     pretrained_model = 'vgg16'
 
     # training
-    epoch = 14
+    epoch = 1000
+    early_stop = 20
 
-
-    use_adam = False # Use Adam optimizer
+    use_adam = True # Use Adam optimizer
     use_chainer = False # try match everything as chainer
     use_drop = False # use dropout in RoIHead
     # debug
